@@ -1,5 +1,5 @@
 {
-  "name": "Copy of ChainSleuth Forensics",
-  "description": "A deterministic blockchain forensics tool to detect, visualize, and explain money laundering (smurfing) patterns.",
+  "name": "ChainSleuth AI Forensics",
+  "description": "Enterprise-grade blockchain forensics platform with multi-agent architecture for detecting money laundering.",
   "requestFramePermissions": []
 }

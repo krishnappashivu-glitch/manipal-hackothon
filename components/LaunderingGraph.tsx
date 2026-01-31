@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import * as d3 from 'd3';
-import { GraphNode, GraphLink, WalletRole } from '../types';
+import { GraphNode, GraphLink, WalletRole, FilterOptions } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { useForensics } from '../context/ForensicsContext';
 
@@ -9,41 +9,41 @@ interface LaunderingGraphProps {
     nodes: GraphNode[];
     links: GraphLink[];
   };
+  filters: FilterOptions;
 }
 
-export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data }) => {
+export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data, filters }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const navigate = useNavigate();
   const { selectWallet } = useForensics();
 
-  // Filter logic: Only show suspicious subgraphs (connected to suspicious nodes)
   const filteredData = useMemo(() => {
-    const suspiciousIds = new Set(
-      data.nodes
-        .filter(n => n.role !== WalletRole.NORMAL)
-        .map(n => n.id)
-    );
-
-    // Include neighbors of suspicious nodes to show context
-    const relevantLinks = data.links.filter(l => {
-      const sourceId = typeof l.source === 'object' ? (l.source as GraphNode).id : l.source;
-      const targetId = typeof l.target === 'object' ? (l.target as GraphNode).id : l.target;
-      return suspiciousIds.has(sourceId as string) || suspiciousIds.has(targetId as string);
+    // 1. Filter Nodes by Score and Amount
+    let activeNodes = data.nodes.filter(n => {
+        // If showNormal is false, only show suspicious.
+        // Suspicious is role != NORMAL OR score > minScore
+        if (!filters.showNormal && n.role === WalletRole.NORMAL) return false;
+        
+        return n.analysis.suspicionScore >= filters.minScore;
     });
 
-    const relevantNodeIds = new Set<string>();
-    relevantLinks.forEach(l => {
-        relevantNodeIds.add(typeof l.source === 'object' ? (l.source as GraphNode).id : l.source as string);
-        relevantNodeIds.add(typeof l.target === 'object' ? (l.target as GraphNode).id : l.target as string);
+    const activeIds = new Set(activeNodes.map(n => n.id));
+
+    // 2. Filter Links
+    const activeLinks = data.links.filter(l => {
+        const sourceId = typeof l.source === 'object' ? (l.source as GraphNode).id : l.source;
+        const targetId = typeof l.target === 'object' ? (l.target as GraphNode).id : l.target;
+        return activeIds.has(sourceId as string) && activeIds.has(targetId as string);
     });
 
-    const relevantNodes = data.nodes.filter(n => relevantNodeIds.has(n.id));
+    // 3. Re-check orphan nodes (optional, but keeps graph clean)
+    // We might want to keep isolated suspicious nodes though.
 
-    // If no suspicious activity, show everything (fallback) or show empty state
-    if (relevantNodes.length === 0) return data;
-
-    return { nodes: relevantNodes.map(n => ({...n})), links: relevantLinks.map(l => ({...l})) };
-  }, [data]);
+    return { 
+        nodes: activeNodes.map(n => ({...n})), 
+        links: activeLinks.map(l => ({...l})) 
+    };
+  }, [data, filters]);
 
   useEffect(() => {
     if (!svgRef.current || !filteredData.nodes.length) return;
@@ -51,13 +51,12 @@ export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data }) => {
     const width = svgRef.current.clientWidth;
     const height = 600;
     const colorMap = {
-      [WalletRole.SOURCE]: '#ef4444', // Red
-      [WalletRole.MULE]: '#f97316',   // Orange
-      [WalletRole.AGGREGATOR]: '#8b5cf6', // Violet
-      [WalletRole.NORMAL]: '#64748b'  // Slate
+      [WalletRole.SOURCE]: '#ef4444',
+      [WalletRole.MULE]: '#f97316', 
+      [WalletRole.AGGREGATOR]: '#8b5cf6', 
+      [WalletRole.NORMAL]: '#64748b' 
     };
 
-    // Clear previous
     d3.select(svgRef.current).selectAll("*").remove();
 
     const svg = d3.select(svgRef.current)
@@ -65,7 +64,6 @@ export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data }) => {
       .style("max-width", "100%")
       .style("height", "auto");
 
-    // Arrows
     svg.append("defs").selectAll("marker")
       .data(["end"])
       .join("marker")
@@ -105,7 +103,6 @@ export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data }) => {
         .on("end", dragended)
       );
 
-    // Node Circles
     node.append("circle")
       .attr("r", (d: GraphNode) => Math.min(Math.max(d.val * 3, 8), 20))
       .attr("fill", (d: GraphNode) => colorMap[d.role])
@@ -117,7 +114,6 @@ export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data }) => {
         navigate(`/wallet/${d.id}`);
       });
 
-    // Labels
     node.append("text")
       .text((d: GraphNode) => d.id.substring(0, 6) + '...')
       .attr("x", 12)

@@ -1,3 +1,5 @@
+export type DataSourceType = 'CSV' | 'LIVE_ETH' | 'LIVE_BTC';
+
 export interface Transaction {
   tx_id: string;
   from_wallet: string;
@@ -5,33 +7,36 @@ export interface Transaction {
   amount: number;
   timestamp: string; // ISO string
   token: string;
+  blockNumber?: number; // For live data
 }
 
 export enum WalletRole {
   NORMAL = 'Normal',
-  SOURCE = 'Source', // Initiates fan-out
-  MULE = 'Mule', // Layering / Pass-through
-  AGGREGATOR = 'Aggregator', // Fan-in collection
+  SOURCE = 'Source', 
+  MULE = 'Mule', 
+  AGGREGATOR = 'Aggregator',
 }
 
 export interface WalletAnalysis {
   address: string;
   role: WalletRole;
   suspicionScore: number; // 0 to 1
-  flags: string[]; // Human readable reasons
+  flags: string[]; 
+  agentExplanation: string; // New: Agent generated narrative
+  confidenceScore: number; // New: Agent confidence
   inDegree: number;
   outDegree: number;
   totalSent: number;
   totalReceived: number;
-  transactions: Transaction[]; // Related transactions
+  transactions: Transaction[];
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 }
 
 export interface GraphNode {
   id: string;
   role: WalletRole;
-  val: number; // for visualization size
+  val: number; 
   analysis: WalletAnalysis;
-  // d3 SimulationNodeDatum properties
   index?: number;
   x?: number;
   y?: number;
@@ -45,8 +50,14 @@ export interface GraphLink {
   source: string | GraphNode;
   target: string | GraphNode;
   amount: number;
-  // d3 SimulationLinkDatum properties
   index?: number;
+}
+
+export interface AgentStatus {
+  name: string;
+  status: 'IDLE' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  message?: string;
+  progress?: number;
 }
 
 export interface AnalysisResult {
@@ -58,4 +69,13 @@ export interface AnalysisResult {
     nodes: GraphNode[];
     links: GraphLink[];
   };
+  timestamp: string;
+  sourceType: DataSourceType;
+}
+
+export interface FilterOptions {
+  minScore: number;
+  showNormal: boolean;
+  minAmount: number;
+  token?: string;
 }
