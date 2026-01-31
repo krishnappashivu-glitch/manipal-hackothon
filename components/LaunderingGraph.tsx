@@ -3,6 +3,7 @@ import * as d3 from 'd3';
 import { GraphNode, GraphLink, WalletRole, FilterOptions } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { useForensics } from '../context/ForensicsContext';
+import { Plus, Minus, Maximize } from 'lucide-react';
 
 interface LaunderingGraphProps {
   data: {
@@ -14,6 +15,7 @@ interface LaunderingGraphProps {
 
 export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data, filters }) => {
   const svgRef = useRef<SVGSVGElement>(null);
+  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const navigate = useNavigate();
   const { selectWallet } = useForensics();
 
@@ -36,9 +38,6 @@ export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data, filters 
         return activeIds.has(sourceId as string) && activeIds.has(targetId as string);
     });
 
-    // 3. Re-check orphan nodes (optional, but keeps graph clean)
-    // We might want to keep isolated suspicious nodes though.
-
     return { 
         nodes: activeNodes.map(n => ({...n})), 
         links: activeLinks.map(l => ({...l})) 
@@ -51,10 +50,10 @@ export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data, filters 
     const width = svgRef.current.clientWidth;
     const height = 600;
     const colorMap = {
-      [WalletRole.SOURCE]: '#ef4444',
-      [WalletRole.MULE]: '#f97316', 
-      [WalletRole.AGGREGATOR]: '#8b5cf6', 
-      [WalletRole.NORMAL]: '#64748b' 
+      [WalletRole.SOURCE]: '#ef4444', // Red
+      [WalletRole.MULE]: '#f97316',   // Orange
+      [WalletRole.AGGREGATOR]: '#8b5cf6', // Violet
+      [WalletRole.NORMAL]: '#71717a'  // Zinc-500
     };
 
     d3.select(svgRef.current).selectAll("*").remove();
@@ -63,6 +62,18 @@ export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data, filters 
       .attr("viewBox", [0, 0, width, height])
       .style("max-width", "100%")
       .style("height", "auto");
+
+    // Add Zoom Behavior
+    const g = svg.append("g");
+    
+    const zoom = d3.zoom<SVGSVGElement, unknown>()
+        .scaleExtent([0.1, 4])
+        .on("zoom", (event) => {
+            g.attr("transform", event.transform);
+        });
+
+    zoomRef.current = zoom;
+    svg.call(zoom);
 
     svg.append("defs").selectAll("marker")
       .data(["end"])
@@ -75,7 +86,7 @@ export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data, filters 
       .attr("markerHeight", 6)
       .attr("orient", "auto")
       .append("path")
-      .attr("fill", "#94a3b8")
+      .attr("fill", "#a1a1aa") // Zinc-400
       .attr("d", "M0,-5L10,0L0,5");
 
     const simulation = d3.forceSimulation(filteredData.nodes as d3.SimulationNodeDatum[])
@@ -84,16 +95,18 @@ export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data, filters 
       .force("center", d3.forceCenter(width / 2, height / 2))
       .force("collide", d3.forceCollide().radius(30));
 
-    const link = svg.append("g")
+    // Append to g instead of svg
+    const link = g.append("g")
       .selectAll("line")
       .data(filteredData.links)
       .join("line")
-      .attr("stroke", "#334155")
+      .attr("stroke", "#3f3f46") // Zinc-700
       .attr("stroke-opacity", 0.6)
       .attr("stroke-width", 2)
       .attr("marker-end", "url(#arrow)");
 
-    const node = svg.append("g")
+    // Append to g instead of svg
+    const node = g.append("g")
       .selectAll("g")
       .data(filteredData.nodes)
       .join("g")
@@ -106,10 +119,12 @@ export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data, filters 
     node.append("circle")
       .attr("r", (d: GraphNode) => Math.min(Math.max(d.val * 3, 8), 20))
       .attr("fill", (d: GraphNode) => colorMap[d.role])
-      .attr("stroke", "#1e293b")
+      .attr("stroke", "#27272a") // Zinc-800
       .attr("stroke-width", 2)
       .attr("class", "cursor-pointer transition-opacity hover:opacity-80")
       .on("click", (event, d: GraphNode) => {
+        // Stop propagation to prevent zoom click
+        event.stopPropagation();
         selectWallet(d.id);
         navigate(`/wallet/${d.id}`);
       });
@@ -118,7 +133,7 @@ export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data, filters 
       .text((d: GraphNode) => d.id.substring(0, 6) + '...')
       .attr("x", 12)
       .attr("y", 3)
-      .attr("fill", "#cbd5e1")
+      .attr("fill", "#d4d4d8") // Zinc-300
       .style("font-size", "10px")
       .style("pointer-events", "none");
 
@@ -155,10 +170,28 @@ export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data, filters 
     };
   }, [filteredData, navigate, selectWallet]);
 
+  const handleZoomIn = () => {
+    if (svgRef.current && zoomRef.current) {
+        d3.select(svgRef.current).transition().duration(300).call(zoomRef.current.scaleBy, 1.2);
+    }
+  };
+
+  const handleZoomOut = () => {
+    if (svgRef.current && zoomRef.current) {
+        d3.select(svgRef.current).transition().duration(300).call(zoomRef.current.scaleBy, 0.8);
+    }
+  };
+
+  const handleResetZoom = () => {
+    if (svgRef.current && zoomRef.current) {
+        d3.select(svgRef.current).transition().duration(750).call(zoomRef.current.transform, d3.zoomIdentity);
+    }
+  };
+
   return (
-    <div className="relative w-full bg-slate-900 rounded-xl border border-slate-800 overflow-hidden shadow-2xl">
-      <div className="absolute top-4 left-4 bg-slate-950/80 p-3 rounded-lg border border-slate-800 backdrop-blur-sm z-10">
-        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Topology Legend</h3>
+    <div className="relative w-full bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden shadow-2xl">
+      <div className="absolute top-4 left-4 bg-zinc-950/80 p-3 rounded-lg border border-zinc-800 backdrop-blur-sm z-10">
+        <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">Topology Legend</h3>
         <div className="space-y-2 text-xs">
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-red-500"></span> Source (Fan-Out)
@@ -170,10 +203,35 @@ export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data, filters 
             <span className="w-3 h-3 rounded-full bg-violet-500"></span> Aggregator (Fan-In)
           </div>
           <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-slate-500"></span> Normal
+            <span className="w-3 h-3 rounded-full bg-zinc-500"></span> Normal
           </div>
         </div>
       </div>
+
+      <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
+        <button 
+            onClick={handleZoomIn}
+            className="p-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-zinc-300 transition-colors shadow-lg"
+            title="Zoom In"
+        >
+            <Plus size={20} />
+        </button>
+        <button 
+            onClick={handleZoomOut}
+            className="p-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-zinc-300 transition-colors shadow-lg"
+            title="Zoom Out"
+        >
+            <Minus size={20} />
+        </button>
+        <button 
+            onClick={handleResetZoom}
+            className="p-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-zinc-300 transition-colors shadow-lg"
+            title="Reset View"
+        >
+            <Maximize size={20} />
+        </button>
+      </div>
+
       <svg ref={svgRef} className="w-full h-[600px] block cursor-move"></svg>
     </div>
   );

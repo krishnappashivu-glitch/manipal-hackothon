@@ -15,14 +15,14 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const isActive = (path: string) => location.pathname === path;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-cyan-500 selection:text-white">
+    <div className="min-h-screen bg-zinc-950 text-zinc-200 font-sans selection:bg-amber-500 selection:text-black">
       {/* Top Navigation */}
-      <header className="fixed top-0 w-full z-50 bg-slate-900/80 backdrop-blur-md border-b border-slate-800">
+      <header className="fixed top-0 w-full z-50 bg-zinc-900/80 backdrop-blur-md border-b border-zinc-800">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
-            <ShieldAlert className="text-cyan-400" size={28} />
+            <ShieldAlert className="text-amber-500" size={28} />
             <h1 className="text-xl font-bold tracking-tight text-white">
-              Chain<span className="text-cyan-400">Sleuth</span>
+              Chain<span className="text-amber-500">Sleuth</span>
             </h1>
           </div>
           
@@ -33,8 +33,8 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                 onClick={() => navigate(item.path)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                   isActive(item.path)
-                    ? 'bg-cyan-950/50 text-cyan-400 border border-cyan-900/50'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    ? 'bg-amber-950/40 text-amber-500 border border-amber-900/50'
+                    : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
                 }`}
               >
                 {item.icon}

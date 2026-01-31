@@ -29,17 +29,94 @@ export class DataIngestionAgent {
     return transactions;
   }
 
-  // Simulated Blockchain API Ingestion
+  // REAL Blockchain API Ingestion (Using Public RPC)
   static async fetchLiveBlockData(startBlock: number): Promise<Transaction[]> {
-    // In a real production system, this would call:
-    // const provider = new ethers.JsonRpcProvider(RPC_URL);
-    // const block = await provider.getBlockWithTransactions(startBlock);
-    
-    // Simulating API latency
-    await new Promise(resolve => setTimeout(resolve, 800));
+    // List of public RPCs to try (Redundancy for reliability)
+    const RPC_ENDPOINTS = [
+        "https://eth.llamarpc.com",
+        "https://rpc.ankr.com/eth",
+        "https://cloudflare-eth.com",
+        "https://1rpc.io/eth"
+    ];
 
-    // Generating synthetic "Live" data
-    const txCount = Math.floor(Math.random() * 20) + 5;
+    let lastError;
+
+    for (const rpcUrl of RPC_ENDPOINTS) {
+        try {
+            // 1. Get latest block number
+            const blockNumRes = await fetch(rpcUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    jsonrpc: "2.0",
+                    method: "eth_blockNumber",
+                    params: [],
+                    id: 1
+                })
+            });
+
+            if (!blockNumRes.ok) throw new Error(`HTTP Error ${blockNumRes.status}`);
+            
+            const blockNumJson = await blockNumRes.json();
+            if (blockNumJson.error) throw new Error(blockNumJson.error.message);
+            
+            const latestBlock = blockNumJson.result;
+
+            // 2. Get Block Details (with transactions)
+            const blockRes = await fetch(rpcUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    jsonrpc: "2.0",
+                    method: "eth_getBlockByNumber",
+                    params: [latestBlock, true], // true = return full transaction objects
+                    id: 2
+                })
+            });
+            
+            if (!blockRes.ok) throw new Error(`HTTP Error ${blockRes.status}`);
+            
+            const blockJson = await blockRes.json();
+            if (blockJson.error) throw new Error(blockJson.error.message);
+
+            const block = blockJson.result;
+
+            if (!block || !block.transactions) {
+                throw new Error("Block data is null or empty");
+            }
+
+            // 3. Normalize Data
+            const transactions: Transaction[] = block.transactions.map((tx: any) => ({
+                tx_id: tx.hash,
+                from_wallet: tx.from,
+                to_wallet: tx.to || '0xContractCreation',
+                // Convert Wei to ETH (approximate for display)
+                amount: parseInt(tx.value, 16) / 1e18, 
+                timestamp: new Date(parseInt(block.timestamp, 16) * 1000).toISOString(),
+                token: 'ETH',
+                blockNumber: parseInt(block.number, 16)
+            }));
+
+            // Filter out 0 value txs to reduce noise for the demo
+            const result = transactions.filter(t => t.amount > 0).slice(0, 50);
+            
+            if (result.length > 0) {
+                return result;
+            }
+            // If empty (unlikely for full blocks), try next RPC or continue
+            
+        } catch (error) {
+            console.warn(`RPC ${rpcUrl} failed:`, error);
+            lastError = error;
+            // Continue to next RPC
+        }
+    }
+
+    console.error("All RPCs failed, falling back to simulation:", lastError);
+      
+    // Fallback to simulation if all RPCs fail
+    await new Promise(resolve => setTimeout(resolve, 800));
+    const txCount = 15;
     const transactions: Transaction[] = [];
     const now = new Date().toISOString();
     
@@ -52,7 +129,7 @@ export class DataIngestionAgent {
             tx_id: `0x${Math.random().toString(16).substring(2)}`,
             from_wallet: from,
             to_wallet: to,
-            amount: Math.random() * 1000,
+            amount: Math.random() * 10 + 0.1,
             timestamp: now,
             token: 'ETH',
             blockNumber: startBlock
