@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useForensics } from '../context/ForensicsContext';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Users, ArrowRightLeft, ShieldAlert, AlertOctagon, Cpu, CheckCircle2, Loader2, GitMerge, X } from 'lucide-react';
-import { WalletRole, WalletAnalysis, AgentStatus, LaunderingChain } from '../types';
+import { ArrowRight, Users, ArrowRightLeft, ShieldAlert, AlertOctagon, Cpu, CheckCircle2, Loader2, GitMerge, X, Activity, Clock } from 'lucide-react';
+import { WalletRole, WalletAnalysis, AgentStatus, LaunderingChain, Transaction } from '../types';
 
 export const AnalysisOverviewPage = () => {
   const { data, pipelineStatus, isProcessing } = useForensics();
@@ -175,6 +175,7 @@ export const AnalysisOverviewPage = () => {
           <ChainDetailsModal 
               chain={selectedChain} 
               wallets={data.wallets}
+              transactions={data.transactions}
               onClose={() => setSelectedChain(null)}
               onNavigate={(id) => navigate(`/wallet/${id}`)}
           />
@@ -183,65 +184,127 @@ export const AnalysisOverviewPage = () => {
   );
 };
 
-const ChainDetailsModal = ({ chain, wallets, onClose, onNavigate }: { 
+const ChainDetailsModal = ({ chain, wallets, transactions, onClose, onNavigate }: { 
     chain: LaunderingChain, 
     wallets: Record<string, WalletAnalysis>, 
+    transactions: Transaction[],
     onClose: () => void,
     onNavigate: (id: string) => void
-}) => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-        <div className="bg-white border border-slate-200 rounded-xl w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl">
-            <div className="p-6 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-xl">
-                <div>
-                    <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                         <GitMerge className="text-amber-600" size={20} />
-                         Laundering Chain #{chain.id}
-                    </h3>
-                    <p className="text-sm text-slate-500 mt-1">
-                        Total Flow Volume: <span className="text-slate-900 font-mono font-bold">{chain.volume.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-                    </p>
+}) => {
+    // Filter transactions relevant to this chain (edges within the subgraph)
+    const chainTxs = transactions.filter(tx => 
+        chain.wallets.includes(tx.from_wallet) && chain.wallets.includes(tx.to_wallet)
+    ).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="bg-white border border-slate-200 rounded-xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl">
+                <div className="p-6 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-xl">
+                    <div>
+                        <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                             <GitMerge className="text-amber-600" size={20} />
+                             Laundering Chain #{chain.id}
+                        </h3>
+                        <p className="text-sm text-slate-500 mt-1">
+                            Total Flow Volume: <span className="text-slate-900 font-mono font-bold">{chain.volume.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                        </p>
+                    </div>
+                    <button 
+                        onClick={onClose} 
+                        className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                    >
+                        <X size={24} />
+                    </button>
                 </div>
-                <button 
-                    onClick={onClose} 
-                    className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                >
-                    <X size={24} />
-                </button>
-            </div>
-            
-            <div className="overflow-y-auto p-6 space-y-3 custom-scrollbar">
-                <div className="text-xs font-bold text-slate-400 uppercase mb-2">Involved Entities ({chain.wallets.length})</div>
-                {chain.wallets.map((walletId) => {
-                    const wallet = wallets[walletId];
-                    return (
-                        <div key={walletId} className="flex items-center justify-between p-3 bg-white rounded border border-slate-200 hover:border-amber-300 hover:shadow-sm group transition-all">
-                            <div className="flex items-center gap-3">
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold bg-slate-100 border border-slate-200 text-slate-500`}>
-                                    {wallet.role.charAt(0)}
-                                </div>
-                                <div>
-                                    <div className="font-mono text-slate-700 text-sm group-hover:text-amber-600 transition-colors font-medium">{walletId}</div>
-                                    <div className="flex items-center gap-2 mt-1">
-                                         <RoleBadge role={wallet.role} />
-                                         <span className="text-[10px] text-slate-500">
-                                            Score: {(wallet.suspicionScore * 100).toFixed(0)}%
-                                         </span>
+                
+                <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
+                    {/* Left: Entity List */}
+                    <div className="w-full md:w-1/2 p-6 overflow-y-auto border-r border-slate-100 custom-scrollbar">
+                         <div className="text-xs font-bold text-slate-400 uppercase mb-4 flex items-center gap-2">
+                            <Users size={14} /> Involved Entities ({chain.wallets.length})
+                         </div>
+                        <div className="space-y-3">
+                            {chain.wallets.map((walletId) => {
+                                const wallet = wallets[walletId];
+                                return (
+                                    <div key={walletId} className="flex items-center justify-between p-3 bg-white rounded border border-slate-200 hover:border-amber-300 hover:shadow-sm group transition-all">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold bg-slate-100 border border-slate-200 text-slate-500`}>
+                                                {wallet.role.charAt(0)}
+                                            </div>
+                                            <div>
+                                                <div className="font-mono text-slate-700 text-sm group-hover:text-amber-600 transition-colors font-medium">{walletId}</div>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                     <RoleBadge role={wallet.role} />
+                                                     <span className="text-[10px] text-slate-500">
+                                                        Score: {(wallet.suspicionScore * 100).toFixed(0)}%
+                                                     </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={() => onNavigate(walletId)}
+                                            className="text-xs px-3 py-1.5 bg-slate-50 border border-slate-200 hover:bg-white hover:border-amber-300 hover:text-amber-600 text-slate-500 rounded transition-colors font-medium shadow-sm"
+                                        >
+                                            Investigate
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Right: Flow Visualization */}
+                    <div className="w-full md:w-1/2 p-6 bg-slate-50/50 overflow-y-auto custom-scrollbar">
+                         <div className="text-xs font-bold text-slate-400 uppercase mb-4 flex items-center gap-2">
+                            <Activity size={14} /> Execution Flow Log
+                         </div>
+                         
+                         <div className="relative border-l-2 border-slate-200 ml-2 space-y-6 pb-2">
+                            {chainTxs.map((tx, i) => (
+                                <div key={tx.tx_id} className="relative pl-6 animate-in slide-in-from-left-2 duration-300" style={{animationDelay: `${i * 50}ms`}}>
+                                    {/* Timeline Dot */}
+                                    <div className="absolute -left-[5px] top-4 w-2.5 h-2.5 rounded-full bg-amber-500 ring-4 ring-slate-50" />
+                                    
+                                    <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm text-sm hover:border-amber-300 transition-colors">
+                                        <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-100">
+                                            <div className="flex items-center gap-1.5 text-slate-400 text-xs font-mono">
+                                                <Clock size={10} />
+                                                {new Date(tx.timestamp).toLocaleTimeString()}
+                                            </div>
+                                            <span className="font-bold text-slate-900">{tx.amount.toLocaleString()} <span className="text-[10px] text-slate-500 font-normal">{tx.token}</span></span>
+                                        </div>
+                                        
+                                        <div className="flex items-center gap-2">
+                                             <div className="flex-1 min-w-0">
+                                                 <div className="text-[10px] text-slate-400 uppercase font-bold mb-0.5">From</div>
+                                                 <div className="font-mono text-xs text-slate-700 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 truncate" title={tx.from_wallet}>
+                                                     {tx.from_wallet}
+                                                 </div>
+                                             </div>
+                                             <ArrowRight size={14} className="text-slate-300 shrink-0 mt-3" />
+                                             <div className="flex-1 min-w-0 text-right">
+                                                 <div className="text-[10px] text-slate-400 uppercase font-bold mb-0.5">To</div>
+                                                 <div className="font-mono text-xs text-slate-700 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 truncate ml-auto" title={tx.to_wallet}>
+                                                     {tx.to_wallet}
+                                                 </div>
+                                             </div>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                            <button 
-                                onClick={() => onNavigate(walletId)}
-                                className="text-xs px-3 py-1.5 bg-slate-50 border border-slate-200 hover:bg-white hover:border-amber-300 hover:text-amber-600 text-slate-500 rounded transition-colors font-medium shadow-sm"
-                            >
-                                Investigate
-                            </button>
-                        </div>
-                    );
-                })}
+                            ))}
+                            {chainTxs.length === 0 && (
+                                <div className="text-center text-slate-400 text-sm py-4 italic">
+                                    No direct internal transactions found in this view.
+                                </div>
+                            )}
+                         </div>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
-);
+    );
+};
 
 const AgentPipelineView = ({ status }: { status: AgentStatus[] }) => (
     <div className="max-w-2xl mx-auto py-20">

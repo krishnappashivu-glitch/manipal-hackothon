@@ -35,7 +35,7 @@ export const UploadPage = () => {
   return (
     <div className="max-w-4xl mx-auto py-12">
       <div className="text-center mb-12">
-        <h2 className="text-4xl font-bold text-slate-900 mb-4">THE FAULT <span className="text-amber-600">HUNTER</span></h2>
+        <h2 className="text-4xl font-bold text-slate-900 mb-4">THE FRAUD <span className="text-amber-600">HUNTER</span></h2>
         <p className="text-slate-500 text-lg max-w-2xl mx-auto">
           Deploy autonomous agents to detect money laundering, smurfing, and layering typologies across blockchain networks.
         </p>

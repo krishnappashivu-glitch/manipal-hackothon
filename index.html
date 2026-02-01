@@ -3,7 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>THE FAULT HUNTER </title>
+    <title>THE FRAUD HUNTER</title>
+    <!-- Tailwind via CDN for simplicity in this setup, though PostCSS is recommended for production -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
       /* Custom Scrollbar for Tactical feel */
@@ -26,21 +27,23 @@
         color: #0f172a; /* slate-900 */
       }
     </style>
-  <script type="importmap">
+<script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@^19.2.4",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "react/": "https://esm.sh/react@^19.2.4/",
     "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
-    "d3": "https://esm.sh/d3@^7.9.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
     "react-router-dom": "https://esm.sh/react-router-dom@^7.13.0",
-    "react-dropzone": "https://esm.sh/react-dropzone@^14.4.0"
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "react": "https://esm.sh/react@^19.2.4",
+    "vite": "https://esm.sh/vite@^7.3.1",
+    "d3": "https://esm.sh/d3@^7.9.0"
   }
 }
 </script>
 </head>
   <body>
     <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
   </body>
 </html>

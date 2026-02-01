@@ -23,7 +23,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
             <ShieldAlert className="text-amber-600" size={28} />
             <h1 className="text-xl font-bold tracking-tight text-slate-900">
-              THE FAULT <span className="text-amber-600">HUNTER</span>
+              THE FRAUD <span className="text-amber-600">HUNTER</span>
             </h1>
           </div>
           
