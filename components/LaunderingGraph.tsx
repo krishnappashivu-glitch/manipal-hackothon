@@ -73,7 +73,7 @@ export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data, filters 
       [WalletRole.SOURCE]: '#ef4444', // Red
       [WalletRole.MULE]: '#f97316',   // Orange
       [WalletRole.DESTINATION]: '#8b5cf6', // Violet
-      [WalletRole.NORMAL]: '#71717a'  // Zinc-500
+      [WalletRole.NORMAL]: '#94a3b8'  // Slate-400 (Lighter for nodes in white theme)
     };
 
     d3.select(svgRef.current).selectAll("*").remove();
@@ -106,7 +106,7 @@ export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data, filters 
       .attr("markerHeight", 6)
       .attr("orient", "auto")
       .append("path")
-      .attr("fill", "#a1a1aa") // Zinc-400
+      .attr("fill", "#cbd5e1") // Slate-300
       .attr("d", "M0,-5L10,0L0,5");
 
     const simulation = d3.forceSimulation(filteredData.nodes as d3.SimulationNodeDatum[])
@@ -120,8 +120,8 @@ export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data, filters 
       .selectAll("line")
       .data(filteredData.links)
       .join("line")
-      .attr("stroke", "#3f3f46") // Zinc-700
-      .attr("stroke-opacity", 0.6)
+      .attr("stroke", "#e2e8f0") // Slate-200 (Very light grey for links)
+      .attr("stroke-opacity", 1)
       .attr("stroke-width", 2)
       .attr("marker-end", "url(#arrow)");
 
@@ -139,9 +139,9 @@ export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data, filters 
     node.append("circle")
       .attr("r", (d: GraphNode) => Math.min(Math.max(d.val * 3, 8), 20))
       .attr("fill", (d: GraphNode) => colorMap[d.role])
-      .attr("stroke", "#27272a") // Zinc-800
+      .attr("stroke", "#fff") // White stroke for nodes
       .attr("stroke-width", 2)
-      .attr("class", "cursor-pointer transition-opacity hover:opacity-80")
+      .attr("class", "cursor-pointer transition-opacity hover:opacity-80 shadow-sm")
       .on("click", (event, d: GraphNode) => {
         // Stop propagation to prevent zoom click
         event.stopPropagation();
@@ -153,8 +153,9 @@ export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data, filters 
       .text((d: GraphNode) => d.id.substring(0, 6) + '...')
       .attr("x", 12)
       .attr("y", 3)
-      .attr("fill", "#d4d4d8") // Zinc-300
+      .attr("fill", "#475569") // Slate-600 (Dark text)
       .style("font-size", "10px")
+      .style("font-weight", "600")
       .style("pointer-events", "none");
 
     simulation.on("tick", () => {
@@ -211,10 +212,10 @@ export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data, filters 
   const isLive = contextData?.sourceType === 'LIVE_ETH' || contextData?.sourceType === 'LIVE_BTC' || contextData?.sourceType === 'LIVE_GLOBAL';
 
   return (
-    <div className="relative w-full bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden shadow-2xl">
-      <div className="absolute top-4 left-4 bg-zinc-950/80 p-3 rounded-lg border border-zinc-800 backdrop-blur-sm z-10 pointer-events-none select-none">
-        <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">Topology Legend</h3>
-        <div className="space-y-2 text-xs">
+    <div className="relative w-full bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+      <div className="absolute top-4 left-4 bg-white/90 p-3 rounded-lg border border-slate-200 backdrop-blur-sm z-10 pointer-events-none select-none shadow-sm">
+        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Topology Legend</h3>
+        <div className="space-y-2 text-xs text-slate-700">
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-red-500"></span> Source (Fan-Out)
           </div>
@@ -225,11 +226,11 @@ export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data, filters 
             <span className="w-3 h-3 rounded-full bg-violet-500"></span> Destination (Fan-In)
           </div>
           <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-zinc-500"></span> Normal
+            <span className="w-3 h-3 rounded-full bg-slate-400"></span> Normal
           </div>
         </div>
         {isLive && (
-             <div className="mt-3 pt-2 border-t border-zinc-800 text-[10px] text-amber-500 flex items-center gap-1 font-bold">
+             <div className="mt-3 pt-2 border-t border-slate-200 text-[10px] text-amber-600 flex items-center gap-1 font-bold">
                  <Activity size={12} className="animate-pulse" />
                  LIVE: Top 10 Risk Nodes
              </div>
@@ -239,21 +240,21 @@ export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data, filters 
       <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
         <button 
             onClick={handleZoomIn}
-            className="p-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-zinc-300 transition-colors shadow-lg"
+            className="p-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-slate-600 transition-colors shadow-sm"
             title="Zoom In"
         >
             <Plus size={20} />
         </button>
         <button 
             onClick={handleZoomOut}
-            className="p-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-zinc-300 transition-colors shadow-lg"
+            className="p-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-slate-600 transition-colors shadow-sm"
             title="Zoom Out"
         >
             <Minus size={20} />
         </button>
         <button 
             onClick={handleResetZoom}
-            className="p-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-zinc-300 transition-colors shadow-lg"
+            className="p-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-slate-600 transition-colors shadow-sm"
             title="Reset View"
         >
             <Maximize size={20} />
