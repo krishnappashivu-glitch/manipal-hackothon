@@ -1,13 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { useForensics } from '../context/ForensicsContext';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Users, ArrowRightLeft, ShieldAlert, AlertOctagon, Cpu, CheckCircle2, Loader2, GitMerge, X, Activity, Clock } from 'lucide-react';
+import { ArrowRight, Users, ArrowRightLeft, ShieldAlert, AlertOctagon, Cpu, CheckCircle2, Loader2, GitMerge, X, Activity, Clock, ChevronRight, Search, Filter } from 'lucide-react';
 import { WalletRole, WalletAnalysis, AgentStatus, LaunderingChain, Transaction } from '../types';
 
 export const AnalysisOverviewPage = () => {
   const { data, pipelineStatus, isProcessing } = useForensics();
   const navigate = useNavigate();
   const [selectedChain, setSelectedChain] = useState<LaunderingChain | null>(null);
+  
+  // Modal state now tracks the initial filter mode
+  const [registryModal, setRegistryModal] = useState<{ isOpen: boolean; filterMode: 'ALL' | 'RISK' }>({
+    isOpen: false,
+    filterMode: 'ALL'
+  });
 
   useEffect(() => {
     // If no data and not processing, go back
@@ -54,6 +60,8 @@ export const AnalysisOverviewPage = () => {
           label="Active Wallets" 
           value={Object.keys(data.wallets).length.toString()} 
           icon={<Users className="text-sky-500" />} 
+          onClick={() => setRegistryModal({ isOpen: true, filterMode: 'ALL' })}
+          clickable
         />
         <StatsCard 
           label="Total Tx Processed" 
@@ -71,6 +79,8 @@ export const AnalysisOverviewPage = () => {
           value={data.suspiciousCount.toString()} 
           icon={<AlertOctagon className="text-red-500" />} 
           highlight
+          clickable
+          onClick={() => setRegistryModal({ isOpen: true, filterMode: 'RISK' })}
         />
       </div>
 
@@ -180,8 +190,178 @@ export const AnalysisOverviewPage = () => {
               onNavigate={(id) => navigate(`/wallet/${id}`)}
           />
       )}
+
+      {registryModal.isOpen && (
+          <AllWalletsModal 
+            wallets={Object.values(data.wallets)} 
+            initialFilter={registryModal.filterMode}
+            onClose={() => setRegistryModal({ isOpen: false, filterMode: 'ALL' })}
+            onNavigate={(id) => navigate(`/wallet/${id}`)}
+          />
+      )}
     </div>
   );
+};
+
+const AllWalletsModal = ({ wallets, onClose, onNavigate, initialFilter = 'ALL' }: { 
+    wallets: WalletAnalysis[], 
+    onClose: () => void,
+    onNavigate: (id: string) => void,
+    initialFilter?: 'ALL' | 'RISK'
+}) => {
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filterRole, setFilterRole] = useState<string>('ALL');
+    const [filterRiskMode, setFilterRiskMode] = useState<'ALL' | 'HIGH_RISK'>('ALL');
+
+    // Initialize state from props
+    useEffect(() => {
+        if (initialFilter === 'RISK') {
+            setFilterRiskMode('HIGH_RISK');
+        }
+    }, [initialFilter]);
+
+    const filteredWallets = wallets.filter(w => {
+        const matchesSearch = w.address.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesRole = filterRole === 'ALL' || w.role === filterRole;
+        
+        // High risk definition: Suspicion > 0.5 (matches the stats card logic)
+        const matchesRisk = filterRiskMode === 'ALL' || (filterRiskMode === 'HIGH_RISK' && w.suspicionScore > 0.5);
+        
+        return matchesSearch && matchesRole && matchesRisk;
+    }).sort((a, b) => b.suspicionScore - a.suspicionScore); // Default sort by risk
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="bg-white border border-slate-200 rounded-xl w-full max-w-5xl max-h-[85vh] flex flex-col shadow-2xl">
+                <div className="p-6 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-xl">
+                    <div>
+                        <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                             <Users className="text-amber-600" size={20} />
+                             Entity Registry
+                        </h3>
+                        <p className="text-sm text-slate-500 mt-1">
+                            Full index of {wallets.length} active monitored entities.
+                        </p>
+                    </div>
+                    <button 
+                        onClick={onClose} 
+                        className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                    >
+                        <X size={24} />
+                    </button>
+                </div>
+
+                {/* Filters */}
+                <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row gap-4 bg-white items-center">
+                    <div className="relative flex-1 w-full">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                        <input 
+                            type="text" 
+                            placeholder="Search address..." 
+                            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-amber-400"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+                    <div className="flex items-center gap-2 w-full md:w-auto">
+                        <Filter size={16} className="text-slate-400 shrink-0" />
+                        
+                        {/* Risk Filter Dropdown */}
+                        <select 
+                            className="flex-1 md:flex-none px-4 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 focus:outline-none focus:border-amber-400 bg-white"
+                            value={filterRiskMode}
+                            onChange={(e) => setFilterRiskMode(e.target.value as 'ALL' | 'HIGH_RISK')}
+                        >
+                            <option value="ALL">All Risk Levels</option>
+                            <option value="HIGH_RISK">High Risk Only (&gt; 50%)</option>
+                        </select>
+
+                        {/* Role Filter Dropdown */}
+                        <select 
+                            className="flex-1 md:flex-none px-4 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 focus:outline-none focus:border-amber-400 bg-white"
+                            value={filterRole}
+                            onChange={(e) => setFilterRole(e.target.value)}
+                        >
+                            <option value="ALL">All Roles</option>
+                            <option value={WalletRole.NORMAL}>Normal</option>
+                            <option value={WalletRole.SOURCE}>Source</option>
+                            <option value={WalletRole.MULE}>Mule</option>
+                            <option value={WalletRole.DESTINATION}>Destination</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-0">
+                    <table className="w-full text-left text-sm text-slate-600">
+                        <thead className="bg-slate-50 text-slate-500 font-medium uppercase text-xs sticky top-0 z-10 shadow-sm">
+                            <tr>
+                                <th className="px-6 py-3 bg-slate-50">Address</th>
+                                <th className="px-6 py-3 bg-slate-50">Role</th>
+                                <th className="px-6 py-3 bg-slate-50">Risk</th>
+                                <th className="px-6 py-3 bg-slate-50 text-right">Volume</th>
+                                <th className="px-6 py-3 bg-slate-50 text-center">Activity</th>
+                                <th className="px-6 py-3 bg-slate-50"></th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {filteredWallets.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} className="px-6 py-8 text-center text-slate-400 italic">
+                                        No entities match the current filters.
+                                    </td>
+                                </tr>
+                            ) : (
+                                filteredWallets.map(wallet => (
+                                    <tr key={wallet.address} className="hover:bg-slate-50 transition-colors group">
+                                        <td className="px-6 py-3 font-mono text-slate-700 font-medium">
+                                            <div className="flex items-center gap-2">
+                                                {wallet.address.substring(0, 16)}...
+                                                {wallet.flags.length > 0 && <ShieldAlert size={14} className="text-red-500" />}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-3">
+                                            <RoleBadge role={wallet.role} />
+                                        </td>
+                                        <td className="px-6 py-3">
+                                             <div className="flex items-center gap-2">
+                                                <div className="w-12 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                  <div 
+                                                    className={`h-full ${wallet.riskLevel === 'CRITICAL' ? 'bg-red-600' : wallet.riskLevel === 'HIGH' ? 'bg-orange-500' : wallet.riskLevel === 'MEDIUM' ? 'bg-yellow-500' : 'bg-green-500'}`} 
+                                                    style={{ width: `${Math.max(wallet.suspicionScore * 100, 5)}%` }}
+                                                  />
+                                                </div>
+                                                <span className="text-xs font-bold text-slate-600">
+                                                    {wallet.riskLevel}
+                                                </span>
+                                              </div>
+                                        </td>
+                                        <td className="px-6 py-3 text-right font-mono text-slate-700">
+                                            {(wallet.totalSent + wallet.totalReceived).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                        </td>
+                                        <td className="px-6 py-3 text-center text-xs text-slate-400">
+                                            {wallet.transactions.length} txs
+                                        </td>
+                                        <td className="px-6 py-3 text-right">
+                                            <button 
+                                                onClick={() => onNavigate(wallet.address)}
+                                                className="text-amber-600 hover:text-amber-700 font-bold text-xs flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity"
+                                            >
+                                                Inspect <ChevronRight size={14} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+                <div className="p-4 border-t border-slate-200 bg-slate-50 text-xs text-slate-400 flex justify-between">
+                     <span>Showing {filteredWallets.length} entities</span>
+                     <span>Use filter to narrow down specific typologies</span>
+                </div>
+            </div>
+        </div>
+    );
 };
 
 const ChainDetailsModal = ({ chain, wallets, transactions, onClose, onNavigate }: { 
@@ -330,11 +510,17 @@ const AgentPipelineView = ({ status }: { status: AgentStatus[] }) => (
     </div>
 );
 
-const StatsCard = ({ label, value, sub, icon, highlight }: any) => (
-  <div className={`p-6 rounded-xl border shadow-sm ${highlight ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'}`}>
+const StatsCard = ({ label, value, sub, icon, highlight, onClick, clickable }: any) => (
+  <div 
+    onClick={onClick}
+    className={`p-6 rounded-xl border shadow-sm transition-all ${
+        highlight ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'
+    } ${clickable ? 'cursor-pointer hover:shadow-md hover:border-amber-300 group' : ''}`}
+  >
     <div className="flex items-start justify-between mb-4">
       <div className={`p-2 rounded-lg ${highlight ? 'bg-white' : 'bg-slate-50'}`}>{icon}</div>
       {highlight && <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />}
+      {clickable && <ChevronRight className="text-slate-300 group-hover:text-amber-500 transition-colors" size={20} />}
     </div>
     <div className="text-2xl font-bold text-slate-900">
       {value} <span className="text-sm font-normal text-slate-500">{sub}</span>
