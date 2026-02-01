@@ -6,6 +6,7 @@ import { UploadPage } from './pages/UploadPage';
 import { AnalysisOverviewPage } from './pages/AnalysisOverviewPage';
 import { LaunderingGraphPage } from './pages/LaunderingGraphPage';
 import { WalletDetailsPage } from './pages/WalletDetailsPage';
+import { NetworkFlowPage } from './pages/NetworkFlowPage';
 
 const App = () => {
   return (
@@ -16,6 +17,7 @@ const App = () => {
             <Route path="/" element={<UploadPage />} />
             <Route path="/analysis" element={<AnalysisOverviewPage />} />
             <Route path="/graph" element={<LaunderingGraphPage />} />
+            <Route path="/flow" element={<NetworkFlowPage />} />
             <Route path="/wallet/:id" element={<WalletDetailsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

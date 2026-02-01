@@ -1,4 +1,5 @@
-export type DataSourceType = 'CSV' | 'LIVE_ETH' | 'LIVE_BTC';
+
+export type DataSourceType = 'CSV' | 'LIVE_ETH' | 'LIVE_BTC' | 'LIVE_GLOBAL';
 
 export interface Transaction {
   tx_id: string;
@@ -14,7 +15,7 @@ export enum WalletRole {
   NORMAL = 'Normal',
   SOURCE = 'Source', 
   MULE = 'Mule', 
-  AGGREGATOR = 'Aggregator',
+  DESTINATION = 'Destination',
 }
 
 export interface WalletAnalysis {
@@ -60,6 +61,12 @@ export interface AgentStatus {
   progress?: number;
 }
 
+export interface LaunderingChain {
+  id: number;
+  volume: number;
+  wallets: string[];
+}
+
 export interface AnalysisResult {
   wallets: Record<string, WalletAnalysis>;
   transactions: Transaction[];
@@ -71,6 +78,7 @@ export interface AnalysisResult {
   };
   timestamp: string;
   sourceType: DataSourceType;
+  launderingChains: LaunderingChain[];
 }
 
 export interface FilterOptions {

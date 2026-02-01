@@ -3,7 +3,7 @@ import * as d3 from 'd3';
 import { GraphNode, GraphLink, WalletRole, FilterOptions } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { useForensics } from '../context/ForensicsContext';
-import { Plus, Minus, Maximize } from 'lucide-react';
+import { Plus, Minus, Maximize, Activity } from 'lucide-react';
 
 interface LaunderingGraphProps {
   data: {
@@ -17,7 +17,7 @@ export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data, filters 
   const svgRef = useRef<SVGSVGElement>(null);
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const navigate = useNavigate();
-  const { selectWallet } = useForensics();
+  const { selectWallet, data: contextData } = useForensics();
 
   const filteredData = useMemo(() => {
     // 1. Filter Nodes by Score and Amount
@@ -28,6 +28,22 @@ export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data, filters 
         
         return n.analysis.suspicionScore >= filters.minScore;
     });
+
+    // CHECK FOR LIVE STREAM
+    const isLive = contextData?.sourceType === 'LIVE_ETH' || contextData?.sourceType === 'LIVE_BTC' || contextData?.sourceType === 'LIVE_GLOBAL';
+
+    if (isLive) {
+        // Sort by Suspicion Score (High to Low), then Volume (High to Low)
+        activeNodes.sort((a, b) => {
+            const scoreDiff = b.analysis.suspicionScore - a.analysis.suspicionScore;
+            // Use a small epsilon for float comparison if needed, but simple subtraction works for sort
+            if (Math.abs(scoreDiff) > 0.001) return scoreDiff;
+            return b.val - a.val;
+        });
+
+        // STRICT LIMIT: Top 10 Nodes
+        activeNodes = activeNodes.slice(0, 10);
+    }
 
     const activeIds = new Set(activeNodes.map(n => n.id));
 
@@ -42,17 +58,21 @@ export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data, filters 
         nodes: activeNodes.map(n => ({...n})), 
         links: activeLinks.map(l => ({...l})) 
     };
-  }, [data, filters]);
+  }, [data, filters, contextData?.sourceType]);
 
   useEffect(() => {
-    if (!svgRef.current || !filteredData.nodes.length) return;
+    if (!svgRef.current || !filteredData.nodes.length) {
+        // Clear if no data
+        if(svgRef.current) d3.select(svgRef.current).selectAll("*").remove();
+        return;
+    }
 
     const width = svgRef.current.clientWidth;
     const height = 600;
     const colorMap = {
       [WalletRole.SOURCE]: '#ef4444', // Red
       [WalletRole.MULE]: '#f97316',   // Orange
-      [WalletRole.AGGREGATOR]: '#8b5cf6', // Violet
+      [WalletRole.DESTINATION]: '#8b5cf6', // Violet
       [WalletRole.NORMAL]: '#71717a'  // Zinc-500
     };
 
@@ -188,9 +208,11 @@ export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data, filters 
     }
   };
 
+  const isLive = contextData?.sourceType === 'LIVE_ETH' || contextData?.sourceType === 'LIVE_BTC' || contextData?.sourceType === 'LIVE_GLOBAL';
+
   return (
     <div className="relative w-full bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden shadow-2xl">
-      <div className="absolute top-4 left-4 bg-zinc-950/80 p-3 rounded-lg border border-zinc-800 backdrop-blur-sm z-10">
+      <div className="absolute top-4 left-4 bg-zinc-950/80 p-3 rounded-lg border border-zinc-800 backdrop-blur-sm z-10 pointer-events-none select-none">
         <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">Topology Legend</h3>
         <div className="space-y-2 text-xs">
           <div className="flex items-center gap-2">
@@ -200,12 +222,18 @@ export const LaunderingGraph: React.FC<LaunderingGraphProps> = ({ data, filters 
             <span className="w-3 h-3 rounded-full bg-orange-500"></span> Mule (Layering)
           </div>
           <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-violet-500"></span> Aggregator (Fan-In)
+            <span className="w-3 h-3 rounded-full bg-violet-500"></span> Destination (Fan-In)
           </div>
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-zinc-500"></span> Normal
           </div>
         </div>
+        {isLive && (
+             <div className="mt-3 pt-2 border-t border-zinc-800 text-[10px] text-amber-500 flex items-center gap-1 font-bold">
+                 <Activity size={12} className="animate-pulse" />
+                 LIVE: Top 10 Risk Nodes
+             </div>
+        )}
       </div>
 
       <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">

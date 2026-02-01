@@ -1,4 +1,17 @@
-import { Transaction, WalletAnalysis, WalletRole, AnalysisResult, GraphNode, GraphLink, DataSourceType } from '../types';
+import { Transaction, WalletAnalysis, WalletRole, AnalysisResult, GraphNode, GraphLink, DataSourceType, LaunderingChain } from '../types';
+
+// Known Exchange Addresses for labeling (Simulation/Enrichment)
+const KNOWN_EXCHANGES: Record<string, string> = {
+    '0xBinance_Hot_Wallet': 'Binance',
+    '0xCoinbase_Prime': 'Coinbase',
+    '0xKraken_Deposit': 'Kraken',
+    '0xHuobi_Reserves': 'Huobi',
+    'bc1_Binance_Cold': 'Binance (BTC)',
+    'bc1_Coinbase_Hot': 'Coinbase (BTC)',
+    '1Kraken_Deposit': 'Kraken (BTC)',
+    // Add dummy mapping for real high-value nodes if identified (simplified)
+    '1BoatSLRHtKNngkdXEeobR76b53LETtpyT': 'MiningPool' 
+};
 
 // =========================================================
 // AGENT 1: DATA INGESTION AGENT
@@ -29,113 +42,82 @@ export class DataIngestionAgent {
     return transactions;
   }
 
-  // REAL Blockchain API Ingestion (Using Public RPC)
-  static async fetchLiveBlockData(startBlock: number): Promise<Transaction[]> {
-    // List of public RPCs to try (Redundancy for reliability)
-    const RPC_ENDPOINTS = [
-        "https://eth.llamarpc.com",
-        "https://rpc.ankr.com/eth",
-        "https://cloudflare-eth.com",
-        "https://1rpc.io/eth"
-    ];
+  // ETHEREUM: Simulated Live Stream
+  static async fetchLiveEthBlock(): Promise<Transaction[]> {
+    // Fast-path latency for high-speed ingestion
+    await new Promise(r => setTimeout(r, 100));
+    return this.generateSimulatedTraffic('ETH');
+  }
 
-    let lastError;
+  // BITCOIN: Simulated Live Stream
+  static async fetchLiveBtcMempool(): Promise<Transaction[]> {
+     // Fast-path latency for high-speed ingestion
+     await new Promise(r => setTimeout(r, 100));
+     return this.generateSimulatedTraffic('BTC');
+  }
 
-    for (const rpcUrl of RPC_ENDPOINTS) {
-        try {
-            // 1. Get latest block number
-            const blockNumRes = await fetch(rpcUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    jsonrpc: "2.0",
-                    method: "eth_blockNumber",
-                    params: [],
-                    id: 1
-                })
-            });
+  // GLOBAL: Fetch Combined Traffic
+  static async fetchLiveGlobalTraffic(): Promise<Transaction[]> {
+    // Single latency penalty for fetching "both"
+    await new Promise(r => setTimeout(r, 100));
+    const ethTxs = this.generateSimulatedTraffic('ETH');
+    const btcTxs = this.generateSimulatedTraffic('BTC');
+    return [...ethTxs, ...btcTxs];
+  }
 
-            if (!blockNumRes.ok) throw new Error(`HTTP Error ${blockNumRes.status}`);
+  private static generateSimulatedTraffic(type: 'ETH' | 'BTC'): Transaction[] {
+      const txCount = Math.floor(Math.random() * 5) + 3; // 3-8 txs per tick
+      const transactions: Transaction[] = [];
+      const now = new Date().toISOString();
+      const prefix = type === 'ETH' ? '0x' : 'bc1_';
+
+      // Probabilities
+      const isExchangeFlow = Math.random() > 0.4;
+      const isLaundering = Math.random() > 0.7;
+
+      for(let i=0; i<txCount; i++) {
+        let from, to, amount;
+
+        if (isExchangeFlow) {
+            const exchanges = type === 'ETH' 
+                ? ['0xBinance_Hot_Wallet', '0xCoinbase_Prime', '0xOKX_Hot'] 
+                : ['bc1_Binance_Cold', 'bc1_Coinbase_Hot', '1Kraken_Deposit'];
             
-            const blockNumJson = await blockNumRes.json();
-            if (blockNumJson.error) throw new Error(blockNumJson.error.message);
+            const randomEx = exchanges[Math.floor(Math.random() * exchanges.length)];
             
-            const latestBlock = blockNumJson.result;
-
-            // 2. Get Block Details (with transactions)
-            const blockRes = await fetch(rpcUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    jsonrpc: "2.0",
-                    method: "eth_getBlockByNumber",
-                    params: [latestBlock, true], // true = return full transaction objects
-                    id: 2
-                })
-            });
-            
-            if (!blockRes.ok) throw new Error(`HTTP Error ${blockRes.status}`);
-            
-            const blockJson = await blockRes.json();
-            if (blockJson.error) throw new Error(blockJson.error.message);
-
-            const block = blockJson.result;
-
-            if (!block || !block.transactions) {
-                throw new Error("Block data is null or empty");
+            if (Math.random() > 0.5) {
+                // Withdrawal
+                from = randomEx;
+                to = `${prefix}User_${Math.floor(Math.random()*1000)}`;
+            } else {
+                // Deposit
+                from = `${prefix}User_${Math.floor(Math.random()*1000)}`;
+                to = randomEx;
             }
-
-            // 3. Normalize Data
-            const transactions: Transaction[] = block.transactions.map((tx: any) => ({
-                tx_id: tx.hash,
-                from_wallet: tx.from,
-                to_wallet: tx.to || '0xContractCreation',
-                // Convert Wei to ETH (approximate for display)
-                amount: parseInt(tx.value, 16) / 1e18, 
-                timestamp: new Date(parseInt(block.timestamp, 16) * 1000).toISOString(),
-                token: 'ETH',
-                blockNumber: parseInt(block.number, 16)
-            }));
-
-            // Filter out 0 value txs to reduce noise for the demo
-            const result = transactions.filter(t => t.amount > 0).slice(0, 50);
-            
-            if (result.length > 0) {
-                return result;
-            }
-            // If empty (unlikely for full blocks), try next RPC or continue
-            
-        } catch (error) {
-            console.warn(`RPC ${rpcUrl} failed:`, error);
-            lastError = error;
-            // Continue to next RPC
+            amount = Math.random() * (type === 'ETH' ? 50 : 5);
+        } else if (isLaundering) {
+            // Smurfing Pattern
+            const smurfId = Math.floor(Math.random()*10);
+            from = `${prefix}Smurf_Source_${smurfId}`;
+            to = `${prefix}Mule_Layer_${Math.floor(Math.random()*20)}`;
+            amount = (Math.random() * 10) + 90; // Just under reporting limits often
+        } else {
+            // Random
+            from = `${prefix}Wallet_${Math.floor(Math.random()*500)}`;
+            to = `${prefix}Wallet_${Math.floor(Math.random()*500)}`;
+            amount = Math.random() * 2;
         }
-    }
 
-    console.error("All RPCs failed, falling back to simulation:", lastError);
-      
-    // Fallback to simulation if all RPCs fail
-    await new Promise(resolve => setTimeout(resolve, 800));
-    const txCount = 15;
-    const transactions: Transaction[] = [];
-    const now = new Date().toISOString();
-    
-    for(let i=0; i<txCount; i++) {
-        const isSmurfing = Math.random() > 0.7;
-        const from = isSmurfing ? `0xLiveSmurfSource_${Math.floor(Math.random()*5)}` : `0xUser_${Math.floor(Math.random()*100)}`;
-        const to = isSmurfing ? `0xLiveMule_${Math.floor(Math.random()*10)}` : `0xExchange_${Math.floor(Math.random()*5)}`;
-        
         transactions.push({
-            tx_id: `0x${Math.random().toString(16).substring(2)}`,
+            tx_id: `${prefix}${Math.random().toString(16).substring(2)}${Math.random().toString(16).substring(2)}`,
             from_wallet: from,
             to_wallet: to,
-            amount: Math.random() * 10 + 0.1,
+            amount: amount,
             timestamp: now,
-            token: 'ETH',
-            blockNumber: startBlock
+            token: type
         });
-    }
-    return transactions;
+      }
+      return transactions;
   }
 }
 
@@ -167,11 +149,14 @@ class TopologyAgent {
     }
 
     private static createEmptyAnalysis(address: string): WalletAnalysis {
+        // Auto-label exchanges
+        const knownName = Object.keys(KNOWN_EXCHANGES).find(k => address.includes(k) || k === address);
+        
         return {
             address,
             role: WalletRole.NORMAL,
             suspicionScore: 0,
-            flags: [],
+            flags: knownName ? [`Identified Entity: ${KNOWN_EXCHANGES[knownName]}`] : [],
             agentExplanation: '',
             confidenceScore: 0,
             inDegree: 0,
@@ -190,6 +175,13 @@ class TopologyAgent {
 // =========================================================
 class PatternDetectionAgent {
     static analyze(wallet: WalletAnalysis) {
+        // Skip if known exchange (whitelisted essentially, though we track flow)
+        if (wallet.flags.some(f => f.includes('Identified Entity'))) {
+            wallet.role = WalletRole.DESTINATION; // Exchanges are technically destinations
+            wallet.riskLevel = 'LOW';
+            return;
+        }
+
         const flags: string[] = [];
         let role = WalletRole.NORMAL;
 
@@ -201,7 +193,7 @@ class PatternDetectionAgent {
         
         // Fan-In Detection
         else if (wallet.inDegree >= 3 && wallet.outDegree <= 1) {
-            role = WalletRole.AGGREGATOR;
+            role = WalletRole.DESTINATION;
             flags.push(`Fan-In Pattern: Collects funds from ${wallet.inDegree} distinct entities.`);
         }
 
@@ -209,13 +201,41 @@ class PatternDetectionAgent {
         else if (wallet.inDegree > 0 && wallet.outDegree > 0) {
             const flowRatio = wallet.totalSent / (wallet.totalReceived || 1);
             if (flowRatio > 0.9 && flowRatio < 1.1) {
+                // Temporal Analysis
+                const sortedTx = [...wallet.transactions].sort((a,b) => 
+                    new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+                );
+
+                let rapidRelayCount = 0;
+                
+                // Iterate transactions to find IN -> OUT patterns within < 1 hour
+                for (let i = 0; i < sortedTx.length; i++) {
+                    const inTx = sortedTx[i];
+                    if (inTx.to_wallet === wallet.address) {
+                        for (let j = i + 1; j < sortedTx.length; j++) {
+                            const outTx = sortedTx[j];
+                            if (outTx.from_wallet === wallet.address) {
+                                const diff = new Date(outTx.timestamp).getTime() - new Date(inTx.timestamp).getTime();
+                                if (diff < 3600000) { 
+                                    rapidRelayCount++;
+                                    break; 
+                                } 
+                            }
+                        }
+                    }
+                }
+                
+                if (rapidRelayCount > 0) {
+                    flags.push(`High Velocity: ${rapidRelayCount} fund relays occurred within <1 hour.`);
+                }
+
                 role = WalletRole.MULE;
                 flags.push(`Passthrough Pattern: Relays ~${(flowRatio * 100).toFixed(0)}% of incoming funds.`);
             }
         }
 
         wallet.role = role;
-        wallet.flags = flags;
+        wallet.flags = [...wallet.flags, ...flags];
     }
 }
 
@@ -225,10 +245,15 @@ class PatternDetectionAgent {
 // =========================================================
 class RiskScoringAgent {
     static score(wallet: WalletAnalysis) {
+        if (wallet.flags.some(f => f.includes('Identified Entity'))) {
+            wallet.suspicionScore = 0;
+            return;
+        }
+
         let score = 0;
         
         if (wallet.role === WalletRole.SOURCE) score += 0.7;
-        if (wallet.role === WalletRole.AGGREGATOR) score += 0.8;
+        if (wallet.role === WalletRole.DESTINATION) score += 0.8;
         if (wallet.role === WalletRole.MULE) score += 0.6;
 
         // Velocity Modifier
@@ -236,6 +261,9 @@ class RiskScoringAgent {
         
         // Volume Modifier (Simplified)
         if (wallet.totalSent > 10000) score += 0.1;
+        
+        // Check for specific flags to boost score
+        if (wallet.flags.some(f => f.includes('High Velocity'))) score += 0.15;
 
         wallet.suspicionScore = Math.min(score, 1);
         
@@ -254,7 +282,12 @@ class ReportingAgent {
     static generateReport(wallet: WalletAnalysis) {
         let narrative = `Analysis of wallet ${wallet.address.substring(0,8)}... indicates `;
         
-        if (wallet.role === WalletRole.NORMAL) {
+        const isExchange = wallet.flags.some(f => f.includes('Identified Entity'));
+
+        if (isExchange) {
+            narrative = `This address is a known entity (${wallet.flags[0]}). High volume is expected. Monitored for illicit inflows.`;
+            wallet.confidenceScore = 1.0;
+        } else if (wallet.role === WalletRole.NORMAL) {
             narrative += "standard transactional behavior consistent with retail user activity. No anomalies detected.";
             wallet.confidenceScore = 0.95;
         } else {
@@ -263,9 +296,12 @@ class ReportingAgent {
             
             if (wallet.role === WalletRole.MULE) {
                 narrative += "This pattern strongly suggests a layering stage in a money laundering typology, acting as an intermediary hop.";
+                if (wallet.flags.some(f => f.includes('High Velocity'))) {
+                    narrative += " Timestamps indicate rapid movement of funds (<1h latency), typical of automated smurfing scripts.";
+                }
             } else if (wallet.role === WalletRole.SOURCE) {
                 narrative += "This resembles a placement or dispersion strategy (Fan-Out), often used to break large sums into less detectable amounts.";
-            } else if (wallet.role === WalletRole.AGGREGATOR) {
+            } else if (wallet.role === WalletRole.DESTINATION) {
                 narrative += "This indicates an integration point (Fan-In), where laundered funds are re-aggregated.";
             }
             wallet.confidenceScore = 0.85 + (wallet.suspicionScore * 0.1);
@@ -306,6 +342,54 @@ export const runAgentPipeline = async (
     // 4. Generate Reports
     wallets.forEach(w => ReportingAgent.generateReport(w));
 
+    // --- Feature: Global Flow Chain Analysis ---
+    // Detect connected components of suspicious wallets to form "Laundering Chains"
+    const suspiciousWallets = wallets.filter(w => w.role !== WalletRole.NORMAL && !w.flags.some(f => f.includes('Identified Entity')));
+    const suspiciousAddrs = new Set(suspiciousWallets.map(w => w.address));
+    const visited = new Set<string>();
+    const launderingChains: LaunderingChain[] = [];
+
+    // Find connected components in the suspicious subgraph
+    for (const w of suspiciousWallets) {
+        if (visited.has(w.address)) continue;
+
+        const chainNodeIds: string[] = [];
+        const queue = [w.address];
+        visited.add(w.address);
+
+        while (queue.length > 0) {
+            const currId = queue.shift()!;
+            chainNodeIds.push(currId);
+            const currWallet = walletMap[currId];
+
+            // Traverse connected suspicious neighbors
+            currWallet.transactions.forEach(tx => {
+                const neighbor = tx.from_wallet === currId ? tx.to_wallet : tx.from_wallet;
+                if (suspiciousAddrs.has(neighbor)) {
+                    if (!visited.has(neighbor)) {
+                        visited.add(neighbor);
+                        queue.push(neighbor);
+                    }
+                }
+            });
+        }
+        
+        // Calculate total flow volume within this chain
+        const chainSet = new Set(chainNodeIds);
+        const chainVolume = transactions
+            .filter(tx => chainSet.has(tx.from_wallet) && chainSet.has(tx.to_wallet))
+            .reduce((sum, tx) => sum + tx.amount, 0);
+
+        if (chainNodeIds.length > 1 || chainVolume > 0) {
+             launderingChains.push({
+                 id: launderingChains.length + 1,
+                 volume: chainVolume,
+                 wallets: chainNodeIds
+             });
+        }
+    }
+    // -------------------------------------------
+
     // 5. Format Output
     const nodes: GraphNode[] = wallets.map(w => ({
         id: w.address,
@@ -329,19 +413,23 @@ export const runAgentPipeline = async (
         totalVolume,
         graphData: { nodes, links },
         timestamp: new Date().toISOString(),
-        sourceType
+        sourceType,
+        launderingChains // New field
     };
 };
 
 export const generateDummyCSV = () => {
   const header = "tx_id,from_wallet,to_wallet,amount,timestamp,token\n";
   const rows = [
+    // Chain 1: Temporal High Velocity
     "tx_1,Source_Alpha,Mule_A,1000,2023-10-27T10:00:00Z,USDT",
     "tx_2,Source_Alpha,Mule_B,1000,2023-10-27T10:05:00Z,USDT",
     "tx_3,Source_Alpha,Mule_C,1000,2023-10-27T10:10:00Z,USDT",
-    "tx_4,Mule_A,Aggregator_Omega,995,2023-10-27T11:00:00Z,USDT",
-    "tx_5,Mule_B,Aggregator_Omega,995,2023-10-27T11:05:00Z,USDT",
-    "tx_6,Mule_C,Aggregator_Omega,995,2023-10-27T11:10:00Z,USDT",
+    "tx_4,Mule_A,Destination_Omega,995,2023-10-27T10:30:00Z,USDT", // < 1h from tx_1
+    "tx_5,Mule_B,Destination_Omega,995,2023-10-27T10:35:00Z,USDT", // < 1h from tx_2
+    "tx_6,Mule_C,Destination_Omega,995,2023-10-27T11:50:00Z,USDT", // > 1h from tx_3 (1h40m)
+    
+    // Normal traffic
     "tx_7,Civilian_Bob,Civilian_Alice,50,2023-10-27T12:00:00Z,USDT",
     "tx_8,Civilian_Alice,Shop_X,50,2023-10-27T14:00:00Z,USDT"
   ];

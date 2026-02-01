@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useForensics } from '../context/ForensicsContext';
 import { useNavigate } from 'react-router-dom';
 import { LaunderingGraph } from '../components/LaunderingGraph';
-import { ArrowLeft, Filter, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Filter, Layers } from 'lucide-react';
 import { FilterOptions } from '../types';
 
 export const LaunderingGraphPage = () => {
@@ -25,7 +25,7 @@ export const LaunderingGraphPage = () => {
       <div className="mb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-white">Laundering Topology Map</h2>
-          <p className="text-zinc-400 text-sm">Real-time force-directed visualization of transaction flows.</p>
+          <p className="text-zinc-400 text-sm">Force-directed visualization of transaction flows.</p>
         </div>
         
         <div className="flex items-center gap-4">
@@ -71,7 +71,7 @@ export const LaunderingGraphPage = () => {
       </div>
       
       <div className="mt-4 text-xs text-zinc-500 text-center flex justify-center items-center gap-2">
-        <RefreshCw size={10} /> Live topology update enabled. Rendering {data.graphData.nodes.length} entities.
+        <Layers size={10} /> Rendering {data.graphData.nodes.length} entities.
       </div>
     </div>
   );

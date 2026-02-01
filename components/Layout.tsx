@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldAlert, Activity, Network, FileText, Menu } from 'lucide-react';
+import { ShieldAlert, Activity, Network, FileText, Menu, ScrollText } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -10,6 +10,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     { path: '/', label: 'Upload Data', icon: <FileText size={20} /> },
     { path: '/analysis', label: 'Analysis Overview', icon: <Activity size={20} /> },
     { path: '/graph', label: 'Laundering Graph', icon: <Network size={20} /> },
+    { path: '/flow', label: 'Network Flow', icon: <ScrollText size={20} /> },
   ];
 
   const isActive = (path: string) => location.pathname === path;
@@ -22,7 +23,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
             <ShieldAlert className="text-amber-500" size={28} />
             <h1 className="text-xl font-bold tracking-tight text-white">
-              Chain<span className="text-amber-500">Sleuth</span>
+              THE FAULT <span className="text-amber-500">HUNTER</span>
             </h1>
           </div>
           
